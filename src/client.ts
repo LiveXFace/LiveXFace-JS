@@ -20,6 +20,9 @@ import type {
   BatchRegisterItem,
   BatchResponse,
   BatchDeleteResponse,
+  AttributesInput,
+  AttributesResult,
+  BatchJob,
 } from "./types";
 
 const DEFAULT_BASE_URL = "http://localhost:8080/api/v1";
@@ -373,6 +376,63 @@ export class FacesResource {
       "DELETE",
       `/collections/${collectionId}/faces/batch`,
       { json: { face_ids: faceIds } },
+    );
+  }
+
+  /**
+   * Detect face attributes (age, gender, emotion, glasses, mask, head pose,
+   * landmarks) for all faces in an image. No face is enrolled.
+   */
+  async attributes(
+    collectionId: string,
+    input: AttributesInput,
+  ): Promise<AttributesResult> {
+    const form = new FormData();
+    form.append("image", await toBlob(input.image), input.filename ?? "image.jpg");
+    return this.client._request<AttributesResult>(
+      "POST",
+      `/collections/${collectionId}/attributes`,
+      { formData: form },
+    );
+  }
+
+  /**
+   * Submit up to 100 faces for asynchronous registration. Returns a job
+   * immediately (HTTP 202); poll {@link getBatchJob} until its status is
+   * `done` or `failed`.
+   */
+  async batchRegisterAsync(
+    collectionId: string,
+    items: BatchRegisterItem[],
+  ): Promise<BatchJob> {
+    const form = new FormData();
+    const entries = items.map((item) => ({
+      external_id: item.external_id,
+      metadata: item.metadata ?? {},
+    }));
+    form.append("entries", JSON.stringify(entries));
+    for (let i = 0; i < items.length; i++) {
+      form.append(
+        `images[${i}]`,
+        await toBlob(items[i].image),
+        `${items[i].external_id}.jpg`,
+      );
+    }
+    return this.client._request<BatchJob>(
+      "POST",
+      `/collections/${collectionId}/faces/batch-async`,
+      { formData: form },
+    );
+  }
+
+  /**
+   * Fetch the status (and, when available, per-image results) of an async
+   * batch registration job.
+   */
+  async getBatchJob(collectionId: string, jobId: string): Promise<BatchJob> {
+    return this.client._request<BatchJob>(
+      "GET",
+      `/collections/${collectionId}/batch/${jobId}`,
     );
   }
 }

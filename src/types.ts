@@ -159,6 +159,90 @@ export interface BatchDeleteResponse {
     results: BatchDeleteResult[]
 }
 
+// ─── Face Attributes ──────────────────────────────────────────────────────────
+
+export interface FaceBBox {
+    x: number
+    y: number
+    width: number
+    height: number
+}
+
+export interface ImageSize {
+    width: number
+    height: number
+}
+
+export interface HeadPose {
+    yaw: number
+    pitch: number
+    roll: number
+    frontal_score: number
+}
+
+export interface EmotionResult {
+    label: string
+    confidence: number
+    scores?: Record<string, number>
+}
+
+export interface DetectionResult {
+    detected: boolean
+    confidence: number
+}
+
+export interface FaceAttributes {
+    age: number
+    gender: string
+    det_score: number
+    bbox: FaceBBox
+    landmarks_5pt?: number[][]
+    landmarks_106?: number[][]
+    head_pose?: HeadPose
+    emotion?: EmotionResult
+    glasses?: DetectionResult
+    mask?: DetectionResult
+}
+
+export interface AttributesInput {
+    image: Blob | Buffer | ArrayBuffer
+    filename?: string
+}
+
+export interface AttributesResult {
+    face_detected: boolean
+    face_count: number
+    /** Attributes of the primary (highest-confidence) face */
+    primary?: FaceAttributes
+    faces: FaceAttributes[]
+    image_size?: ImageSize
+}
+
+// ─── Async Batch Jobs ─────────────────────────────────────────────────────────
+
+export type BatchJobStatus = 'queued' | 'processing' | 'done' | 'failed'
+
+export interface BatchJobResult {
+    index: number
+    external_id: string
+    face_id?: string
+    error?: string
+}
+
+export interface BatchJob {
+    id: string
+    collection_id: string
+    status: BatchJobStatus
+    total: number
+    processed: number
+    succeeded: number
+    failed: number
+    /** Per-image results; present once the job has started producing them */
+    results?: BatchJobResult[]
+    created_at: string
+    updated_at: string
+}
+
 // ─── Client Config ─────────────────────────────────────────────────────────────
 
 export interface FRClientConfig {
