@@ -1,0 +1,36 @@
+{
+  "name": "fr-apiaas-sdk",
+  "version": "0.1.0",
+  "description": "Official TypeScript/JavaScript SDK for FR-APIaaS — Face Recognition as a Service",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "lint": "tsc --noEmit",
+    "test": "node --test dist/test"
+  },
+  "keywords": [
+    "face-recognition",
+    "biometrics",
+    "api",
+    "sdk",
+    "fr-apiaas"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.4.0"
+  }
+}
