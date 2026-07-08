@@ -1,23 +1,23 @@
-# serupa
+# idemity
 
-Official TypeScript/JavaScript SDK for [Serupa](https://github.com/imronreviady/serupa) — Face Recognition as a Service.
+Official TypeScript/JavaScript SDK for [Idemity](https://github.com/imronreviady/idemity) — Face Recognition as a Service.
 
 ## Installation
 
 ```bash
-npm install serupa
+npm install idemity
 # or
-yarn add serupa
+yarn add idemity
 ```
 
 ## Quick Start
 
 ```typescript
-import { Serupa } from 'serupa'
+import { Idemity } from 'idemity'
 import * as fs from 'fs'
 
-const client = new Serupa({
-  apiKey: 'srp_live_xxxxxxxxxxxx',
+const client = new Idemity({
+  apiKey: 'idm_live_xxxxxxxxxxxx',
   baseUrl: 'https://your-instance/api/v1', // optional
 })
 
@@ -86,14 +86,14 @@ const del = await client.faces.batchDelete('collection-id', ['face-id-1', 'face-
 ## Error Handling
 
 ```typescript
-import { SerupaApiError, SerupaNetworkError } from 'serupa'
+import { IdemityApiError, IdemityNetworkError } from 'idemity'
 
 try {
   const result = await client.faces.identify('col-id', { image: buffer })
 } catch (err) {
-  if (err instanceof SerupaApiError) {
+  if (err instanceof IdemityApiError) {
     console.error(`API error [${err.code}] ${err.statusCode}: ${err.message}`)
-  } else if (err instanceof SerupaNetworkError) {
+  } else if (err instanceof IdemityNetworkError) {
     console.error('Network error:', err.message)
   }
 }
@@ -103,6 +103,6 @@ try {
 
 | Option    | Type     | Default                              | Description                     |
 | --------- | -------- | ------------------------------------ | ------------------------------- |
-| `apiKey`  | `string` | **required**                         | Your API key (`srp_live_xxx`)    |
-| `baseUrl` | `string` | `http://localhost:8080/api/v1`       | Base URL of the Serupa server|
+| `apiKey`  | `string` | **required**                         | Your API key (`idm_live_xxx`)    |
+| `baseUrl` | `string` | `http://localhost:8080/api/v1`       | Base URL of the Idemity server|
 | `timeout` | `number` | `30000`                              | Request timeout in milliseconds |

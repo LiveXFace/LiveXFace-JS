@@ -1,7 +1,7 @@
-export { Serupa, CollectionsResource, FacesResource } from './client'
-export { SerupaApiError, SerupaNetworkError } from './error'
+export { Idemity, CollectionsResource, FacesResource } from './client'
+export { IdemityApiError, IdemityNetworkError } from './error'
 export type {
-    SerupaConfig,
+    IdemityConfig,
     APIResponse,
     APIError,
     FaceCollection,

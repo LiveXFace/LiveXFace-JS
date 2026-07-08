@@ -1,9 +1,9 @@
 import * as fs from "fs";
 import * as path from "path";
-import { SerupaApiError, SerupaNetworkError } from "./error";
+import { IdemityApiError, IdemityNetworkError } from "./error";
 import type {
   APIResponse,
-  SerupaConfig,
+  IdemityConfig,
   FaceCollection,
   CreateCollectionInput,
   Face,
@@ -48,16 +48,16 @@ async function toBlob(src: ImageSource, filename = "image.jpg"): Promise<Blob> {
 }
 
 /**
- * Serupa — main client for the Serupa recognition API.
+ * Idemity — main client for the Idemity recognition API.
  *
  * All face operations (register, verify, identify, liveness, compare) use
  * API key authentication scoped to a specific collection.
  *
  * @example
  * ```ts
- * import { Serupa } from 'serupa'
+ * import { Idemity } from 'idemity'
  *
- * const client = new Serupa({ apiKey: 'srp_live_xxxx' })
+ * const client = new Idemity({ apiKey: 'idm_live_xxxx' })
  *
  * const result = await client.faces.identify('col_id', {
  *   image: fs.readFileSync('./face.jpg'),
@@ -65,7 +65,7 @@ async function toBlob(src: ImageSource, filename = "image.jpg"): Promise<Blob> {
  * })
  * ```
  */
-export class Serupa {
+export class Idemity {
   private readonly baseUrl: string;
   private readonly apiKey: string;
   private readonly timeout: number;
@@ -73,7 +73,7 @@ export class Serupa {
   public readonly collections: CollectionsResource;
   public readonly faces: FacesResource;
 
-  constructor(config: SerupaConfig) {
+  constructor(config: IdemityConfig) {
     this.baseUrl = (config.baseUrl ?? DEFAULT_BASE_URL).replace(/\/$/, "");
     this.apiKey = config.apiKey;
     this.timeout = config.timeout ?? DEFAULT_TIMEOUT;
@@ -116,12 +116,12 @@ export class Serupa {
       });
     } catch (err: unknown) {
       if (err instanceof Error && err.name === "AbortError") {
-        throw new SerupaNetworkError(
+        throw new IdemityNetworkError(
           `Request timed out after ${this.timeout}ms`,
           err,
         );
       }
-      throw new SerupaNetworkError(`Network request failed: ${String(err)}`, err);
+      throw new IdemityNetworkError(`Network request failed: ${String(err)}`, err);
     } finally {
       clearTimeout(timer);
     }
@@ -130,7 +130,7 @@ export class Serupa {
     try {
       parsed = (await response.json()) as APIResponse<T>;
     } catch {
-      throw new SerupaApiError(
+      throw new IdemityApiError(
         "PARSE_ERROR",
         "Failed to parse response body",
         response.status,
@@ -138,7 +138,7 @@ export class Serupa {
     }
 
     if (!parsed.success || !response.ok) {
-      throw new SerupaApiError(
+      throw new IdemityApiError(
         parsed.error?.code ?? "UNKNOWN_ERROR",
         parsed.error?.message ?? "An unknown error occurred",
         response.status,
@@ -153,7 +153,7 @@ export class Serupa {
 // ─── Collections Resource ─────────────────────────────────────────────────────
 
 export class CollectionsResource {
-  constructor(private readonly client: Serupa) {}
+  constructor(private readonly client: Idemity) {}
 
   /** List all face collections accessible by this API key. */
   async list(): Promise<FaceCollection[]> {
@@ -198,7 +198,7 @@ export class CollectionsResource {
 // ─── Faces Resource ───────────────────────────────────────────────────────────
 
 export class FacesResource {
-  constructor(private readonly client: Serupa) {}
+  constructor(private readonly client: Idemity) {}
 
   /** Register a face in a collection. */
   async register(
@@ -253,7 +253,7 @@ export class FacesResource {
       `/collections/${collectionId}/faces?external_id=${encodeURIComponent(externalId)}`,
     );
     const items = Array.isArray(result) ? result : []
-    if (items.length === 0) throw new SerupaApiError('NOT_FOUND', `No face found with external_id "${externalId}"`, 404)
+    if (items.length === 0) throw new IdemityApiError('NOT_FOUND', `No face found with external_id "${externalId}"`, 404)
     return items[0]
   }
 
