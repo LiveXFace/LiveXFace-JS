@@ -3,13 +3,11 @@
   "version": "0.1.0",
   "description": "Official TypeScript/JavaScript SDK for Idemity — Face Recognition as a Service",
   "main": "dist/index.js",
-  "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
   "exports": {
     ".": {
-      "import": "./dist/index.mjs",
-      "require": "./dist/index.js",
-      "types": "./dist/index.d.ts"
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
     }
   },
   "files": [
@@ -19,7 +17,7 @@
     "build": "tsc",
     "dev": "tsc --watch",
     "lint": "tsc --noEmit",
-    "test": "node --test dist/test"
+    "prepare": "tsc"
   },
   "keywords": [
     "face-recognition",
@@ -28,6 +26,15 @@
     "sdk",
     "idemity"
   ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/idemity/idemity-js.git"
+  },
+  "homepage": "https://idemity.com",
+  "bugs": {
+    "url": "https://github.com/idemity/idemity-js/issues"
+  },
+  "author": "Idemity",
   "license": "MIT",
   "devDependencies": {
     "@types/node": "^22.0.0",
