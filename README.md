@@ -1,23 +1,23 @@
-# fr-apiaas-sdk
+# serupa
 
-Official TypeScript/JavaScript SDK for [FR-APIaaS](https://github.com/imronreviady/fr-apiaas) — Face Recognition as a Service.
+Official TypeScript/JavaScript SDK for [Serupa](https://github.com/imronreviady/serupa) — Face Recognition as a Service.
 
 ## Installation
 
 ```bash
-npm install fr-apiaas-sdk
+npm install serupa
 # or
-yarn add fr-apiaas-sdk
+yarn add serupa
 ```
 
 ## Quick Start
 
 ```typescript
-import { FRClient } from 'fr-apiaas-sdk'
+import { Serupa } from 'serupa'
 import * as fs from 'fs'
 
-const client = new FRClient({
-  apiKey: 'fr_live_xxxxxxxxxxxx',
+const client = new Serupa({
+  apiKey: 'srp_live_xxxxxxxxxxxx',
   baseUrl: 'https://your-instance/api/v1', // optional
 })
 
@@ -86,14 +86,14 @@ const del = await client.faces.batchDelete('collection-id', ['face-id-1', 'face-
 ## Error Handling
 
 ```typescript
-import { FRApiError, FRNetworkError } from 'fr-apiaas-sdk'
+import { SerupaApiError, SerupaNetworkError } from 'serupa'
 
 try {
   const result = await client.faces.identify('col-id', { image: buffer })
 } catch (err) {
-  if (err instanceof FRApiError) {
+  if (err instanceof SerupaApiError) {
     console.error(`API error [${err.code}] ${err.statusCode}: ${err.message}`)
-  } else if (err instanceof FRNetworkError) {
+  } else if (err instanceof SerupaNetworkError) {
     console.error('Network error:', err.message)
   }
 }
@@ -103,6 +103,6 @@ try {
 
 | Option    | Type     | Default                              | Description                     |
 | --------- | -------- | ------------------------------------ | ------------------------------- |
-| `apiKey`  | `string` | **required**                         | Your API key (`fr_live_xxx`)    |
-| `baseUrl` | `string` | `http://localhost:8080/api/v1`       | Base URL of the FR-APIaaS server|
+| `apiKey`  | `string` | **required**                         | Your API key (`srp_live_xxx`)    |
+| `baseUrl` | `string` | `http://localhost:8080/api/v1`       | Base URL of the Serupa server|
 | `timeout` | `number` | `30000`                              | Request timeout in milliseconds |

@@ -1,9 +1,9 @@
 import * as fs from "fs";
 import * as path from "path";
-import { FRApiError, FRNetworkError } from "./error";
+import { SerupaApiError, SerupaNetworkError } from "./error";
 import type {
   APIResponse,
-  FRClientConfig,
+  SerupaConfig,
   FaceCollection,
   CreateCollectionInput,
   Face,
@@ -48,16 +48,16 @@ async function toBlob(src: ImageSource, filename = "image.jpg"): Promise<Blob> {
 }
 
 /**
- * FRClient — main client for the FR-APIaaS recognition API.
+ * Serupa — main client for the Serupa recognition API.
  *
  * All face operations (register, verify, identify, liveness, compare) use
  * API key authentication scoped to a specific collection.
  *
  * @example
  * ```ts
- * import { FRClient } from 'fr-apiaas-sdk'
+ * import { Serupa } from 'serupa'
  *
- * const client = new FRClient({ apiKey: 'fr_live_xxxx' })
+ * const client = new Serupa({ apiKey: 'srp_live_xxxx' })
  *
  * const result = await client.faces.identify('col_id', {
  *   image: fs.readFileSync('./face.jpg'),
@@ -65,7 +65,7 @@ async function toBlob(src: ImageSource, filename = "image.jpg"): Promise<Blob> {
  * })
  * ```
  */
-export class FRClient {
+export class Serupa {
   private readonly baseUrl: string;
   private readonly apiKey: string;
   private readonly timeout: number;
@@ -73,7 +73,7 @@ export class FRClient {
   public readonly collections: CollectionsResource;
   public readonly faces: FacesResource;
 
-  constructor(config: FRClientConfig) {
+  constructor(config: SerupaConfig) {
     this.baseUrl = (config.baseUrl ?? DEFAULT_BASE_URL).replace(/\/$/, "");
     this.apiKey = config.apiKey;
     this.timeout = config.timeout ?? DEFAULT_TIMEOUT;
@@ -116,12 +116,12 @@ export class FRClient {
       });
     } catch (err: unknown) {
       if (err instanceof Error && err.name === "AbortError") {
-        throw new FRNetworkError(
+        throw new SerupaNetworkError(
           `Request timed out after ${this.timeout}ms`,
           err,
         );
       }
-      throw new FRNetworkError(`Network request failed: ${String(err)}`, err);
+      throw new SerupaNetworkError(`Network request failed: ${String(err)}`, err);
     } finally {
       clearTimeout(timer);
     }
@@ -130,7 +130,7 @@ export class FRClient {
     try {
       parsed = (await response.json()) as APIResponse<T>;
     } catch {
-      throw new FRApiError(
+      throw new SerupaApiError(
         "PARSE_ERROR",
         "Failed to parse response body",
         response.status,
@@ -138,7 +138,7 @@ export class FRClient {
     }
 
     if (!parsed.success || !response.ok) {
-      throw new FRApiError(
+      throw new SerupaApiError(
         parsed.error?.code ?? "UNKNOWN_ERROR",
         parsed.error?.message ?? "An unknown error occurred",
         response.status,
@@ -153,7 +153,7 @@ export class FRClient {
 // ─── Collections Resource ─────────────────────────────────────────────────────
 
 export class CollectionsResource {
-  constructor(private readonly client: FRClient) {}
+  constructor(private readonly client: Serupa) {}
 
   /** List all face collections accessible by this API key. */
   async list(): Promise<FaceCollection[]> {
@@ -198,7 +198,7 @@ export class CollectionsResource {
 // ─── Faces Resource ───────────────────────────────────────────────────────────
 
 export class FacesResource {
-  constructor(private readonly client: FRClient) {}
+  constructor(private readonly client: Serupa) {}
 
   /** Register a face in a collection. */
   async register(
@@ -253,7 +253,7 @@ export class FacesResource {
       `/collections/${collectionId}/faces?external_id=${encodeURIComponent(externalId)}`,
     );
     const items = Array.isArray(result) ? result : []
-    if (items.length === 0) throw new FRApiError('NOT_FOUND', `No face found with external_id "${externalId}"`, 404)
+    if (items.length === 0) throw new SerupaApiError('NOT_FOUND', `No face found with external_id "${externalId}"`, 404)
     return items[0]
   }
 

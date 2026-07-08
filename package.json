@@ -1,7 +1,7 @@
 {
-  "name": "fr-apiaas-sdk",
+  "name": "serupa",
   "version": "0.1.0",
-  "description": "Official TypeScript/JavaScript SDK for FR-APIaaS — Face Recognition as a Service",
+  "description": "Official TypeScript/JavaScript SDK for Serupa — Face Recognition as a Service",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
@@ -26,7 +26,7 @@
     "biometrics",
     "api",
     "sdk",
-    "fr-apiaas"
+    "serupa"
   ],
   "license": "MIT",
   "devDependencies": {

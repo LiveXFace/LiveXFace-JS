@@ -1,7 +1,7 @@
-export { FRClient, CollectionsResource, FacesResource } from './client'
-export { FRApiError, FRNetworkError } from './error'
+export { Serupa, CollectionsResource, FacesResource } from './client'
+export { SerupaApiError, SerupaNetworkError } from './error'
 export type {
-    FRClientConfig,
+    SerupaConfig,
     APIResponse,
     APIError,
     FaceCollection,

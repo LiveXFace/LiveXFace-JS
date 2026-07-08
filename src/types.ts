@@ -245,10 +245,10 @@ export interface BatchJob {
 
 // ─── Client Config ─────────────────────────────────────────────────────────────
 
-export interface FRClientConfig {
-    /** Your API key (fr_live_xxx or fr_test_xxx) */
+export interface SerupaConfig {
+    /** Your API key (srp_live_xxx or srp_test_xxx) */
     apiKey: string
-    /** Base URL of the FR-APIaaS instance. Defaults to https://api.fr-apiaas.io/api/v1 */
+    /** Base URL of the Serupa instance. Defaults to https://api.serupa.ai/api/v1 */
     baseUrl?: string
     /** Request timeout in milliseconds. Defaults to 30000 */
     timeout?: number
