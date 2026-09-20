@@ -1,30 +1,30 @@
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/brand/logo-white.svg">
-    <img src="docs/brand/logo.svg" alt="Idemity" width="220">
+    <img src="docs/brand/logo.svg" alt="LiveXFace" width="220">
   </picture>
 </p>
 
-# idemity
+# livexface
 
-Official TypeScript/JavaScript SDK for [Idemity](https://github.com/imronreviady/idemity) — Face Recognition as a Service.
+Official TypeScript/JavaScript SDK for [LiveXFace](https://github.com/imronreviady/livexface) — Face Recognition as a Service.
 
 ## Installation
 
 ```bash
-npm install idemity
+npm install livexface
 # or
-yarn add idemity
+yarn add livexface
 ```
 
 ## Quick Start
 
 ```typescript
-import { Idemity } from 'idemity'
+import { LiveXFace } from 'livexface'
 import * as fs from 'fs'
 
-const client = new Idemity({
-  apiKey: 'idm_live_xxxxxxxxxxxx',
+const client = new LiveXFace({
+  apiKey: 'lxf_live_xxxxxxxxxxxx',
   baseUrl: 'https://your-instance/api/v1', // optional
 })
 
@@ -40,7 +40,7 @@ console.log('Registered face:', face.id)
 const result = await client.faces.identify('collection-id', {
   image: fs.readFileSync('./query.jpg'),
   top_k: 3,
-  threshold: 0.55,
+  threshold: 0.45,
 })
 for (const match of result.matches) {
   console.log(`${match.face.external_id}: ${(match.similarity * 100).toFixed(1)}%`)
@@ -93,14 +93,14 @@ const del = await client.faces.batchDelete('collection-id', ['face-id-1', 'face-
 ## Error Handling
 
 ```typescript
-import { IdemityApiError, IdemityNetworkError } from 'idemity'
+import { LiveXFaceApiError, LiveXFaceNetworkError } from 'livexface'
 
 try {
   const result = await client.faces.identify('col-id', { image: buffer })
 } catch (err) {
-  if (err instanceof IdemityApiError) {
+  if (err instanceof LiveXFaceApiError) {
     console.error(`API error [${err.code}] ${err.statusCode}: ${err.message}`)
-  } else if (err instanceof IdemityNetworkError) {
+  } else if (err instanceof LiveXFaceNetworkError) {
     console.error('Network error:', err.message)
   }
 }
@@ -110,6 +110,6 @@ try {
 
 | Option    | Type     | Default                              | Description                     |
 | --------- | -------- | ------------------------------------ | ------------------------------- |
-| `apiKey`  | `string` | **required**                         | Your API key (`idm_live_xxx`)    |
-| `baseUrl` | `string` | `http://localhost:8080/api/v1`       | Base URL of the Idemity server|
+| `apiKey`  | `string` | **required**                         | Your API key (`lxf_live_xxx`)    |
+| `baseUrl` | `string` | `http://localhost:8080/api/v1`       | Base URL of the LiveXFace server|
 | `timeout` | `number` | `30000`                              | Request timeout in milliseconds |

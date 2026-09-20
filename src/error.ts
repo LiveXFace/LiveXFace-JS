@@ -1,22 +1,22 @@
-export class IdemityApiError extends Error {
+export class LiveXFaceApiError extends Error {
     public readonly code: string
     public readonly statusCode: number
     public readonly requestId?: string
 
     constructor(code: string, message: string, statusCode: number, requestId?: string) {
         super(message)
-        this.name = 'IdemityApiError'
+        this.name = 'LiveXFaceApiError'
         this.code = code
         this.statusCode = statusCode
         this.requestId = requestId
-        Object.setPrototypeOf(this, IdemityApiError.prototype)
+        Object.setPrototypeOf(this, LiveXFaceApiError.prototype)
     }
 }
 
-export class IdemityNetworkError extends Error {
+export class LiveXFaceNetworkError extends Error {
     constructor(message: string, public readonly cause?: unknown) {
         super(message)
-        this.name = 'IdemityNetworkError'
-        Object.setPrototypeOf(this, IdemityNetworkError.prototype)
+        this.name = 'LiveXFaceNetworkError'
+        Object.setPrototypeOf(this, LiveXFaceNetworkError.prototype)
     }
 }

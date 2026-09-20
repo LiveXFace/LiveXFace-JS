@@ -1,9 +1,9 @@
 import * as fs from "fs";
 import * as path from "path";
-import { IdemityApiError, IdemityNetworkError } from "./error";
+import { LiveXFaceApiError, LiveXFaceNetworkError } from "./error";
 import type {
   APIResponse,
-  IdemityConfig,
+  LiveXFaceConfig,
   FaceCollection,
   CreateCollectionInput,
   Face,
@@ -48,16 +48,16 @@ async function toBlob(src: ImageSource, filename = "image.jpg"): Promise<Blob> {
 }
 
 /**
- * Idemity — main client for the Idemity recognition API.
+ * LiveXFace — main client for the LiveXFace recognition API.
  *
  * All face operations (register, verify, identify, liveness, compare) use
  * API key authentication scoped to a specific collection.
  *
  * @example
  * ```ts
- * import { Idemity } from 'idemity'
+ * import { LiveXFace } from 'livexface'
  *
- * const client = new Idemity({ apiKey: 'idm_live_xxxx' })
+ * const client = new LiveXFace({ apiKey: 'lxf_live_xxxx' })
  *
  * const result = await client.faces.identify('col_id', {
  *   image: fs.readFileSync('./face.jpg'),
@@ -65,7 +65,7 @@ async function toBlob(src: ImageSource, filename = "image.jpg"): Promise<Blob> {
  * })
  * ```
  */
-export class Idemity {
+export class LiveXFace {
   private readonly baseUrl: string;
   private readonly apiKey: string;
   private readonly timeout: number;
@@ -73,7 +73,7 @@ export class Idemity {
   public readonly collections: CollectionsResource;
   public readonly faces: FacesResource;
 
-  constructor(config: IdemityConfig) {
+  constructor(config: LiveXFaceConfig) {
     this.baseUrl = (config.baseUrl ?? DEFAULT_BASE_URL).replace(/\/$/, "");
     this.apiKey = config.apiKey;
     this.timeout = config.timeout ?? DEFAULT_TIMEOUT;
@@ -116,12 +116,12 @@ export class Idemity {
       });
     } catch (err: unknown) {
       if (err instanceof Error && err.name === "AbortError") {
-        throw new IdemityNetworkError(
+        throw new LiveXFaceNetworkError(
           `Request timed out after ${this.timeout}ms`,
           err,
         );
       }
-      throw new IdemityNetworkError(`Network request failed: ${String(err)}`, err);
+      throw new LiveXFaceNetworkError(`Network request failed: ${String(err)}`, err);
     } finally {
       clearTimeout(timer);
     }
@@ -130,7 +130,7 @@ export class Idemity {
     try {
       parsed = (await response.json()) as APIResponse<T>;
     } catch {
-      throw new IdemityApiError(
+      throw new LiveXFaceApiError(
         "PARSE_ERROR",
         "Failed to parse response body",
         response.status,
@@ -138,7 +138,7 @@ export class Idemity {
     }
 
     if (!parsed.success || !response.ok) {
-      throw new IdemityApiError(
+      throw new LiveXFaceApiError(
         parsed.error?.code ?? "UNKNOWN_ERROR",
         parsed.error?.message ?? "An unknown error occurred",
         response.status,
@@ -153,7 +153,7 @@ export class Idemity {
 // ─── Collections Resource ─────────────────────────────────────────────────────
 
 export class CollectionsResource {
-  constructor(private readonly client: Idemity) {}
+  constructor(private readonly client: LiveXFace) {}
 
   /** List all face collections accessible by this API key. */
   async list(): Promise<FaceCollection[]> {
@@ -198,7 +198,7 @@ export class CollectionsResource {
 // ─── Faces Resource ───────────────────────────────────────────────────────────
 
 export class FacesResource {
-  constructor(private readonly client: Idemity) {}
+  constructor(private readonly client: LiveXFace) {}
 
   /** Register a face in a collection. */
   async register(
@@ -253,7 +253,7 @@ export class FacesResource {
       `/collections/${collectionId}/faces?external_id=${encodeURIComponent(externalId)}`,
     );
     const items = Array.isArray(result) ? result : []
-    if (items.length === 0) throw new IdemityApiError('NOT_FOUND', `No face found with external_id "${externalId}"`, 404)
+    if (items.length === 0) throw new LiveXFaceApiError('NOT_FOUND', `No face found with external_id "${externalId}"`, 404)
     return items[0]
   }
 
@@ -347,7 +347,7 @@ export class FacesResource {
   ): Promise<BatchResponse> {
     const form = new FormData();
     const entries = items.map((item) => ({
-      external_id: item.external_id,
+      externalId: item.external_id,
       metadata: item.metadata ?? {},
     }));
     form.append("entries", JSON.stringify(entries));
@@ -375,7 +375,7 @@ export class FacesResource {
     return this.client._request<BatchDeleteResponse>(
       "DELETE",
       `/collections/${collectionId}/faces/batch`,
-      { json: { face_ids: faceIds } },
+      { json: { faceIds } },
     );
   }
 
@@ -407,7 +407,7 @@ export class FacesResource {
   ): Promise<BatchJob> {
     const form = new FormData();
     const entries = items.map((item) => ({
-      external_id: item.external_id,
+      externalId: item.external_id,
       metadata: item.metadata ?? {},
     }));
     form.append("entries", JSON.stringify(entries));

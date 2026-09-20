@@ -1,7 +1,7 @@
 {
-  "name": "idemity",
+  "name": "livexface",
   "version": "0.1.0",
-  "description": "Official TypeScript/JavaScript SDK for Idemity — Face Recognition as a Service",
+  "description": "Official TypeScript/JavaScript SDK for LiveXFace — Face Recognition as a Service",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "exports": {
@@ -24,17 +24,17 @@
     "biometrics",
     "api",
     "sdk",
-    "idemity"
+    "livexface"
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/idemity/idemity-js.git"
+    "url": "git+https://github.com/livexface/livexface-js.git"
   },
-  "homepage": "https://idemity.com",
+  "homepage": "https://livexface.com",
   "bugs": {
-    "url": "https://github.com/idemity/idemity-js/issues"
+    "url": "https://github.com/livexface/livexface-js/issues"
   },
-  "author": "Idemity",
+  "author": "LiveXFace",
   "license": "MIT",
   "devDependencies": {
     "@types/node": "^22.0.0",

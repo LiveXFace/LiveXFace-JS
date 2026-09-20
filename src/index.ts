@@ -1,7 +1,7 @@
-export { Idemity, CollectionsResource, FacesResource } from './client'
-export { IdemityApiError, IdemityNetworkError } from './error'
+export { LiveXFace, CollectionsResource, FacesResource } from './client'
+export { LiveXFaceApiError, LiveXFaceNetworkError } from './error'
 export type {
-    IdemityConfig,
+    LiveXFaceConfig,
     APIResponse,
     APIError,
     FaceCollection,

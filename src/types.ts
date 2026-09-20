@@ -245,10 +245,10 @@ export interface BatchJob {
 
 // ─── Client Config ─────────────────────────────────────────────────────────────
 
-export interface IdemityConfig {
-    /** Your API key (idm_live_xxx or idm_test_xxx) */
+export interface LiveXFaceConfig {
+    /** Your API key (lxf_live_xxx or lxf_test_xxx) */
     apiKey: string
-    /** Base URL of the Idemity instance. Defaults to https://api.idemity.com/api/v1 */
+    /** Base URL of the LiveXFace instance. Defaults to https://api.livexface.com/api/v1 */
     baseUrl?: string
     /** Request timeout in milliseconds. Defaults to 30000 */
     timeout?: number
