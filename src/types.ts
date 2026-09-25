@@ -1,3 +1,8 @@
+// Every response type below mirrors what the API actually sends: JSON keys are
+// camelCase. They used to be declared snake_case (external_id, created_at, ...)
+// while the client returned the parsed JSON untouched, so those fields were
+// always undefined at runtime.
+
 // ─── API Response ─────────────────────────────────────────────────────────────
 
 export interface APIResponse<T = unknown> {
@@ -5,8 +10,8 @@ export interface APIResponse<T = unknown> {
     data?: T
     error?: APIError
     message?: string
-    request_id?: string
-    timestamp: string
+    requestId?: string
+    timestamp?: string
 }
 
 export interface APIError {
@@ -14,38 +19,19 @@ export interface APIError {
     message: string
 }
 
-// ─── Collections ──────────────────────────────────────────────────────────────
-
-export interface FaceCollection {
-    id: string
-    organization_id: string
-    name: string
-    description?: string
-    face_count: number
-    retention_days?: number | null
-    created_at: string
-    updated_at: string
-}
-
-export interface CreateCollectionInput {
-    name: string
-    description?: string
-    retention_days?: number
-}
-
 // ─── Faces ────────────────────────────────────────────────────────────────────
 
 export interface Face {
     id: string
-    collection_id: string
-    external_id: string
+    collectionId: string
+    externalId: string
     metadata: Record<string, unknown>
-    image_url?: string
-    created_at: string
+    imageUrl?: string
+    createdAt: string
 }
 
 export interface RegisterFaceInput {
-    external_id: string
+    externalId: string
     /** Image as a Blob (browser) or Buffer/ArrayBuffer (Node.js) */
     image: Blob | Buffer | ArrayBuffer
     metadata?: Record<string, unknown>
@@ -53,25 +39,28 @@ export interface RegisterFaceInput {
 }
 
 export interface ListFacesInput {
-    external_id?: string
     limit?: number
     offset?: number
 }
 
 export interface ListFacesResponse {
-    items: Face[]
+    faces: Face[]
     total: number
+    limit: number
+    offset: number
 }
 
 // ─── Recognition ──────────────────────────────────────────────────────────────
 
 export interface VerifyInput {
     image: Blob | Buffer | ArrayBuffer
-    face_id?: string
+    /** ID of the stored face to compare against */
+    faceId: string
     threshold?: number
     filename?: string
 }
 
+/** Result of verify and of compare. `faceId` is set by verify only. */
 export interface VerifyResult {
     match: boolean
     confidence: number
@@ -89,16 +78,35 @@ export interface IdentifyMatch {
 
 export interface IdentifyInput {
     image: Blob | Buffer | ArrayBuffer
-    top_k?: number
+    /** Number of matches to return (default 5, max 100) */
+    topK?: number
     threshold?: number
-    /** If true, only return results for live (non-spoofed) faces */
-    live?: boolean
     filename?: string
+}
+
+export interface FaceBBox {
+    x: number
+    y: number
+    width: number
+    height: number
+}
+
+export interface ImageSize {
+    width: number
+    height: number
+}
+
+/** A face found in the query image, whether or not it matched anyone. */
+export interface DetectedFace {
+    bbox: FaceBBox
+    detScore: number
 }
 
 export interface IdentifyResult {
     matches: IdentifyMatch[]
     queryTimeMs: number
+    detectedFaces?: DetectedFace[]
+    imageSize?: ImageSize
 }
 
 export interface CompareInput {
@@ -107,12 +115,6 @@ export interface CompareInput {
     threshold?: number
     filename1?: string
     filename2?: string
-}
-
-export interface CompareResult {
-    match: boolean
-    confidence: number
-    threshold: number
 }
 
 export interface LivenessInput {
@@ -130,14 +132,14 @@ export interface LivenessResult {
 // ─── Batch ────────────────────────────────────────────────────────────────────
 
 export interface BatchRegisterItem {
-    external_id: string
+    externalId: string
     image: Blob | Buffer | ArrayBuffer
     metadata?: Record<string, unknown>
     filename?: string
 }
 
 export interface BatchFaceResult {
-    external_id: string
+    externalId: string
     face?: Face
     error?: string
 }
@@ -149,7 +151,7 @@ export interface BatchResponse {
 }
 
 export interface BatchDeleteResult {
-    face_id: string
+    faceId: string
     error?: string
 }
 
@@ -161,23 +163,11 @@ export interface BatchDeleteResponse {
 
 // ─── Face Attributes ──────────────────────────────────────────────────────────
 
-export interface FaceBBox {
-    x: number
-    y: number
-    width: number
-    height: number
-}
-
-export interface ImageSize {
-    width: number
-    height: number
-}
-
 export interface HeadPose {
     yaw: number
     pitch: number
     roll: number
-    frontal_score: number
+    frontalScore: number
 }
 
 export interface EmotionResult {
@@ -194,11 +184,11 @@ export interface DetectionResult {
 export interface FaceAttributes {
     age: number
     gender: string
-    det_score: number
+    detScore: number
     bbox: FaceBBox
-    landmarks_5pt?: number[][]
-    landmarks_106?: number[][]
-    head_pose?: HeadPose
+    landmarks5pt?: number[][]
+    landmarks106?: number[][]
+    headPose?: HeadPose
     emotion?: EmotionResult
     glasses?: DetectionResult
     mask?: DetectionResult
@@ -210,12 +200,12 @@ export interface AttributesInput {
 }
 
 export interface AttributesResult {
-    face_detected: boolean
-    face_count: number
+    faceDetected: boolean
+    faceCount: number
     /** Attributes of the primary (highest-confidence) face */
     primary?: FaceAttributes
     faces: FaceAttributes[]
-    image_size?: ImageSize
+    imageSize?: ImageSize
 }
 
 // ─── Async Batch Jobs ─────────────────────────────────────────────────────────
@@ -224,14 +214,14 @@ export type BatchJobStatus = 'queued' | 'processing' | 'done' | 'failed'
 
 export interface BatchJobResult {
     index: number
-    external_id: string
-    face_id?: string
+    externalId: string
+    faceId?: string
     error?: string
 }
 
 export interface BatchJob {
     id: string
-    collection_id: string
+    collectionId: string
     status: BatchJobStatus
     total: number
     processed: number
@@ -239,8 +229,8 @@ export interface BatchJob {
     failed: number
     /** Per-image results; present once the job has started producing them */
     results?: BatchJobResult[]
-    created_at: string
-    updated_at: string
+    createdAt: string
+    updatedAt: string
 }
 
 // ─── Client Config ─────────────────────────────────────────────────────────────
