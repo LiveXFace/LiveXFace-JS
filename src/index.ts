@@ -1,11 +1,9 @@
-export { LiveXFace, CollectionsResource, FacesResource } from './client'
+export { LiveXFace, FacesResource } from './client'
 export { LiveXFaceApiError, LiveXFaceNetworkError } from './error'
 export type {
     LiveXFaceConfig,
     APIResponse,
     APIError,
-    FaceCollection,
-    CreateCollectionInput,
     Face,
     RegisterFaceInput,
     ListFacesInput,
@@ -15,8 +13,8 @@ export type {
     IdentifyMatch,
     IdentifyInput,
     IdentifyResult,
+    DetectedFace,
     CompareInput,
-    CompareResult,
     LivenessInput,
     LivenessResult,
     BatchRegisterItem,

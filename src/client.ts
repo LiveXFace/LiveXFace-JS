@@ -4,17 +4,15 @@ import { LiveXFaceApiError, LiveXFaceNetworkError } from "./error";
 import type {
   APIResponse,
   LiveXFaceConfig,
-  FaceCollection,
-  CreateCollectionInput,
   Face,
   RegisterFaceInput,
   ListFacesInput,
+  ListFacesResponse,
   VerifyInput,
   VerifyResult,
   IdentifyInput,
   IdentifyResult,
   CompareInput,
-  CompareResult,
   LivenessInput,
   LivenessResult,
   BatchRegisterItem,
@@ -51,7 +49,9 @@ async function toBlob(src: ImageSource, filename = "image.jpg"): Promise<Blob> {
  * LiveXFace — main client for the LiveXFace recognition API.
  *
  * All face operations (register, verify, identify, liveness, compare) use
- * API key authentication scoped to a specific collection.
+ * API key authentication scoped to a specific collection. Collections
+ * themselves are created and managed in the dashboard; the API has no
+ * endpoints for that, so neither does this client.
  *
  * @example
  * ```ts
@@ -61,7 +61,7 @@ async function toBlob(src: ImageSource, filename = "image.jpg"): Promise<Blob> {
  *
  * const result = await client.faces.identify('col_id', {
  *   image: fs.readFileSync('./face.jpg'),
- *   top_k: 3,
+ *   topK: 3,
  * })
  * ```
  */
@@ -70,7 +70,6 @@ export class LiveXFace {
   private readonly apiKey: string;
   private readonly timeout: number;
 
-  public readonly collections: CollectionsResource;
   public readonly faces: FacesResource;
 
   constructor(config: LiveXFaceConfig) {
@@ -78,7 +77,6 @@ export class LiveXFace {
     this.apiKey = config.apiKey;
     this.timeout = config.timeout ?? DEFAULT_TIMEOUT;
 
-    this.collections = new CollectionsResource(this);
     this.faces = new FacesResource(this);
   }
 
@@ -126,13 +124,23 @@ export class LiveXFace {
       clearTimeout(timer);
     }
 
+    // A delete answers 204 with no body. Parsing it used to throw
+    // PARSE_ERROR, so every successful delete looked like a failure.
+    if (response.status === 204) {
+      return undefined as T;
+    }
+
     let parsed: APIResponse<T>;
     try {
       parsed = (await response.json()) as APIResponse<T>;
     } catch {
+      // An unknown route answers with a plain-text 404, not the JSON
+      // envelope; report the HTTP status rather than a parse failure.
       throw new LiveXFaceApiError(
-        "PARSE_ERROR",
-        "Failed to parse response body",
+        response.ok ? "PARSE_ERROR" : `HTTP_${response.status}`,
+        response.ok
+          ? "Failed to parse response body"
+          : `Request failed with HTTP ${response.status}`,
         response.status,
       );
     }
@@ -142,56 +150,11 @@ export class LiveXFace {
         parsed.error?.code ?? "UNKNOWN_ERROR",
         parsed.error?.message ?? "An unknown error occurred",
         response.status,
-        parsed.request_id,
+        parsed.requestId,
       );
     }
 
     return parsed.data as T;
-  }
-}
-
-// ─── Collections Resource ─────────────────────────────────────────────────────
-
-export class CollectionsResource {
-  constructor(private readonly client: LiveXFace) {}
-
-  /** List all face collections accessible by this API key. */
-  async list(): Promise<FaceCollection[]> {
-    return this.client._request<FaceCollection[]>("GET", "/collections");
-  }
-
-  /** Get a single collection by ID. */
-  async get(collectionId: string): Promise<FaceCollection> {
-    return this.client._request<FaceCollection>(
-      "GET",
-      `/collections/${collectionId}`,
-    );
-  }
-
-  /** Create a new face collection. */
-  async create(input: CreateCollectionInput): Promise<FaceCollection> {
-    return this.client._request<FaceCollection>("POST", "/collections", {
-      json: input,
-    });
-  }
-
-  /** Update collection name/description. */
-  async update(
-    collectionId: string,
-    input: Partial<CreateCollectionInput>,
-  ): Promise<FaceCollection> {
-    return this.client._request<FaceCollection>(
-      "PUT",
-      `/collections/${collectionId}`,
-      {
-        json: input,
-      },
-    );
-  }
-
-  /** Delete a collection and all its faces. */
-  async delete(collectionId: string): Promise<void> {
-    return this.client._request<void>("DELETE", `/collections/${collectionId}`);
   }
 }
 
@@ -206,7 +169,7 @@ export class FacesResource {
     input: RegisterFaceInput,
   ): Promise<Face> {
     const form = new FormData();
-    form.append("external_id", input.external_id);
+    form.append("external_id", input.externalId);
     form.append("image", await toBlob(input.image), "image.jpg");
     if (input.metadata) {
       form.append("metadata", JSON.stringify(input.metadata));
@@ -224,12 +187,12 @@ export class FacesResource {
   async list(
     collectionId: string,
     input: ListFacesInput = {},
-  ): Promise<{ faces: Face[]; total: number }> {
+  ): Promise<ListFacesResponse> {
     const params = new URLSearchParams();
     if (input.limit !== undefined) params.set("limit", String(input.limit));
     if (input.offset !== undefined) params.set("offset", String(input.offset));
     const qs = params.toString() ? `?${params.toString()}` : "";
-    return this.client._request<{ faces: Face[]; total: number }>(
+    return this.client._request<ListFacesResponse>(
       "GET",
       `/collections/${collectionId}/faces${qs}`,
     );
@@ -243,7 +206,11 @@ export class FacesResource {
     );
   }
 
-  /** Get a face by external ID. Returns the first match. */
+  /**
+   * Get a face by external ID. Returns the first match. Filtering by
+   * external ID makes the API answer with a bare array rather than the
+   * paginated `{ faces, total }` object.
+   */
   async getByExternalId(
     collectionId: string,
     externalId: string,
@@ -253,7 +220,7 @@ export class FacesResource {
       `/collections/${collectionId}/faces?external_id=${encodeURIComponent(externalId)}`,
     );
     const items = Array.isArray(result) ? result : []
-    if (items.length === 0) throw new LiveXFaceApiError('NOT_FOUND', `No face found with external_id "${externalId}"`, 404)
+    if (items.length === 0) throw new LiveXFaceApiError('FACE_NOT_FOUND', `No face found with external_id "${externalId}"`, 404)
     return items[0]
   }
 
@@ -266,9 +233,9 @@ export class FacesResource {
   }
 
   /**
-   * 1:1 Verify — compare a query image against a stored face or a second image.
+   * 1:1 Verify — compare a query image against a stored face.
    * @param collectionId  Collection that contains the reference face
-   * @param input.face_id  ID of the stored face to compare against (mutually exclusive with ref_image)
+   * @param input.faceId  ID of the stored face to compare against
    */
   async verify(
     collectionId: string,
@@ -276,7 +243,7 @@ export class FacesResource {
   ): Promise<VerifyResult> {
     const form = new FormData();
     form.append("image", await toBlob(input.image), "image.jpg");
-    if (input.face_id) form.append("face_id", input.face_id);
+    form.append("face_id", input.faceId);
     if (input.threshold !== undefined)
       form.append("threshold", String(input.threshold));
     return this.client._request<VerifyResult>(
@@ -297,10 +264,9 @@ export class FacesResource {
   ): Promise<IdentifyResult> {
     const form = new FormData();
     form.append("image", await toBlob(input.image), "image.jpg");
-    if (input.top_k !== undefined) form.append("top_k", String(input.top_k));
+    if (input.topK !== undefined) form.append("top_k", String(input.topK));
     if (input.threshold !== undefined)
       form.append("threshold", String(input.threshold));
-    if (input.live !== undefined) form.append("live", String(input.live));
     return this.client._request<IdentifyResult>(
       "POST",
       `/collections/${collectionId}/identify`,
@@ -327,13 +293,13 @@ export class FacesResource {
   /**
    * Face comparison — compare two images without enrolling into a collection.
    */
-  async compare(input: CompareInput): Promise<CompareResult> {
+  async compare(input: CompareInput): Promise<VerifyResult> {
     const form = new FormData();
     form.append("image1", await toBlob(input.image1), "image1.jpg");
     form.append("image2", await toBlob(input.image2), "image2.jpg");
     if (input.threshold !== undefined)
       form.append("threshold", String(input.threshold));
-    return this.client._request<CompareResult>("POST", "/compare", {
+    return this.client._request<VerifyResult>("POST", "/compare", {
       formData: form,
     });
   }
@@ -347,7 +313,7 @@ export class FacesResource {
   ): Promise<BatchResponse> {
     const form = new FormData();
     const entries = items.map((item) => ({
-      externalId: item.external_id,
+      externalId: item.externalId,
       metadata: item.metadata ?? {},
     }));
     form.append("entries", JSON.stringify(entries));
@@ -355,7 +321,7 @@ export class FacesResource {
       form.append(
         `images[${i}]`,
         await toBlob(items[i].image),
-        `${items[i].external_id}.jpg`,
+        `${items[i].externalId}.jpg`,
       );
     }
     return this.client._request<BatchResponse>(
@@ -407,7 +373,7 @@ export class FacesResource {
   ): Promise<BatchJob> {
     const form = new FormData();
     const entries = items.map((item) => ({
-      externalId: item.external_id,
+      externalId: item.externalId,
       metadata: item.metadata ?? {},
     }));
     form.append("entries", JSON.stringify(entries));
@@ -415,7 +381,7 @@ export class FacesResource {
       form.append(
         `images[${i}]`,
         await toBlob(items[i].image),
-        `${items[i].external_id}.jpg`,
+        `${items[i].externalId}.jpg`,
       );
     }
     return this.client._request<BatchJob>(

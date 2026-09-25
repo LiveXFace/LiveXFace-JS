@@ -30,7 +30,7 @@ const client = new LiveXFace({
 
 // Register a face
 const face = await client.faces.register('collection-id', {
-  external_id: 'user_123',
+  externalId: 'user_123',
   image: fs.readFileSync('./photo.jpg'),
   metadata: { name: 'John Doe', department: 'Engineering' },
 })
@@ -39,50 +39,39 @@ console.log('Registered face:', face.id)
 // Identify (1:N search)
 const result = await client.faces.identify('collection-id', {
   image: fs.readFileSync('./query.jpg'),
-  top_k: 3,
-  threshold: 0.45,
+  topK: 3,
 })
 for (const match of result.matches) {
-  console.log(`${match.face.external_id}: ${(match.similarity * 100).toFixed(1)}%`)
+  console.log(`${match.externalId}: ${(match.confidence * 100).toFixed(1)}%`)
 }
 
-// Verify (1:1 comparison)
+// Verify (1:1 against a stored face)
 const verify = await client.faces.verify('collection-id', {
   image: fs.readFileSync('./query.jpg'),
-  face_id: face.id,
+  faceId: face.id,
 })
-console.log('Match:', verify.match, 'Confidence:', verify.confidence)
+console.log('Match:', verify.match, 'Confidence:', verify.confidence, 'Threshold:', verify.thresholdUsed)
 
 // Liveness detection
 const liveness = await client.faces.liveness('collection-id', {
   image: fs.readFileSync('./query.jpg'),
 })
-console.log('Live:', liveness.is_live, 'Spoof score:', liveness.spoof_score)
+console.log('Live:', liveness.isLive, 'Score:', liveness.livenessScore)
 ```
 
 ## Collections
 
-```typescript
-// List collections
-const collections = await client.collections.list()
-
-// Create a collection
-const collection = await client.collections.create({
-  name: 'employees',
-  description: 'Employee face database',
-})
-
-// Delete a collection
-await client.collections.delete(collection.id)
-```
+Collections are created and managed in the LiveXFace dashboard, not through
+the API, so the client has no methods for them. Create one there and pass its
+ID to the calls above.
 
 ## Batch Operations
 
 ```typescript
 // Batch register (up to 20 faces)
 const batch = await client.faces.batchRegister('collection-id', [
-  { external_id: 'user_1', image: fs.readFileSync('./user1.jpg') },
-  { external_id: 'user_2', image: fs.readFileSync('./user2.jpg'), metadata: { role: 'admin' } },
+  { externalId: 'user_1', image: fs.readFileSync('./user1.jpg') },
+  { externalId: 'user_2', image: fs.readFileSync('./user2.jpg'), metadata: { role: 'admin' } },
 ])
 console.log(`Succeeded: ${batch.succeeded}, Failed: ${batch.failed}`)
 
@@ -100,6 +89,7 @@ try {
 } catch (err) {
   if (err instanceof LiveXFaceApiError) {
     console.error(`API error [${err.code}] ${err.statusCode}: ${err.message}`)
+    console.error('Quote this when contacting support:', err.requestId)
   } else if (err instanceof LiveXFaceNetworkError) {
     console.error('Network error:', err.message)
   }
