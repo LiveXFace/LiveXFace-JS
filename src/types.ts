@@ -36,6 +36,11 @@ export interface RegisterFaceInput {
     image: Blob | Buffer | ArrayBuffer
     metadata?: Record<string, unknown>
     filename?: string
+    /**
+     * Single-use token from {@link ActiveLivenessResult}. Required when the
+     * collection requires liveness at enrolment.
+     */
+    livenessToken?: string
 }
 
 export interface ListFacesInput {
@@ -129,6 +134,35 @@ export interface LivenessResult {
     faceCount: number
 }
 
+/**
+ * One challenge of an active liveness check. `passed` is null when the
+ * challenge could not be evaluated; `available` is false when the server has
+ * no model for it. Extra keys carry challenge-specific metrics.
+ */
+export interface ActiveLivenessChallenge {
+    passed: boolean | null
+    available: boolean
+    [metric: string]: unknown
+}
+
+export interface ActiveLivenessChallenges {
+    blink: ActiveLivenessChallenge
+    headTurn: ActiveLivenessChallenge
+    passiveAntispoof: ActiveLivenessChallenge
+}
+
+export interface ActiveLivenessResult {
+    isLive: boolean
+    overallScore: number
+    framesAnalyzed: number
+    framesWithFace: number
+    challenges: ActiveLivenessChallenges
+    /** Single-use enrolment token, present only when the check passed */
+    livenessToken?: string
+    /** RFC 3339 expiry of `livenessToken` (5 minutes after issue) */
+    livenessTokenExpiresAt?: string
+}
+
 // ─── Batch ────────────────────────────────────────────────────────────────────
 
 export interface BatchRegisterItem {
@@ -136,6 +170,11 @@ export interface BatchRegisterItem {
     image: Blob | Buffer | ArrayBuffer
     metadata?: Record<string, unknown>
     filename?: string
+    /**
+     * Single-use token from {@link ActiveLivenessResult}. Required when the
+     * collection requires liveness at enrolment.
+     */
+    livenessToken?: string
 }
 
 export interface BatchFaceResult {

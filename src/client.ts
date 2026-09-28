@@ -15,6 +15,7 @@ import type {
   CompareInput,
   LivenessInput,
   LivenessResult,
+  ActiveLivenessResult,
   BatchRegisterItem,
   BatchResponse,
   BatchDeleteResponse,
@@ -158,6 +159,19 @@ export class LiveXFace {
   }
 }
 
+/**
+ * Serialize a batch item into its `entries` JSON object. `livenessToken` is
+ * omitted when unset rather than sent as null.
+ */
+function toBatchEntry(item: BatchRegisterItem): Record<string, unknown> {
+  const entry: Record<string, unknown> = {
+    externalId: item.externalId,
+    metadata: item.metadata ?? {},
+  };
+  if (item.livenessToken) entry.livenessToken = item.livenessToken;
+  return entry;
+}
+
 // ─── Faces Resource ───────────────────────────────────────────────────────────
 
 export class FacesResource {
@@ -173,6 +187,9 @@ export class FacesResource {
     form.append("image", await toBlob(input.image), "image.jpg");
     if (input.metadata) {
       form.append("metadata", JSON.stringify(input.metadata));
+    }
+    if (input.livenessToken) {
+      form.append("liveness_token", input.livenessToken);
     }
     return this.client._request<Face>(
       "POST",
@@ -291,6 +308,28 @@ export class FacesResource {
   }
 
   /**
+   * Active liveness — analyse a short burst of frames (5 to 50, JPEG/PNG) for
+   * a blink, a head turn and passive anti-spoofing. When the check passes the
+   * result carries a single-use `livenessToken`, valid for 5 minutes and bound
+   * to this collection, that {@link register} and the batch methods accept
+   * for collections that require liveness at enrolment.
+   */
+  async activeLiveness(
+    collectionId: string,
+    frames: Array<Blob | Buffer | ArrayBuffer>,
+  ): Promise<ActiveLivenessResult> {
+    const form = new FormData();
+    for (let i = 0; i < frames.length; i++) {
+      form.append(`frame_${i}`, await toBlob(frames[i]), `frame_${i}.jpg`);
+    }
+    return this.client._request<ActiveLivenessResult>(
+      "POST",
+      `/collections/${collectionId}/active-liveness`,
+      { formData: form },
+    );
+  }
+
+  /**
    * Face comparison — compare two images without enrolling into a collection.
    */
   async compare(input: CompareInput): Promise<VerifyResult> {
@@ -312,10 +351,7 @@ export class FacesResource {
     items: BatchRegisterItem[],
   ): Promise<BatchResponse> {
     const form = new FormData();
-    const entries = items.map((item) => ({
-      externalId: item.externalId,
-      metadata: item.metadata ?? {},
-    }));
+    const entries = items.map(toBatchEntry);
     form.append("entries", JSON.stringify(entries));
     for (let i = 0; i < items.length; i++) {
       form.append(
@@ -372,10 +408,7 @@ export class FacesResource {
     items: BatchRegisterItem[],
   ): Promise<BatchJob> {
     const form = new FormData();
-    const entries = items.map((item) => ({
-      externalId: item.externalId,
-      metadata: item.metadata ?? {},
-    }));
+    const entries = items.map(toBatchEntry);
     form.append("entries", JSON.stringify(entries));
     for (let i = 0; i < items.length; i++) {
       form.append(
