@@ -59,6 +59,33 @@ const liveness = await client.faces.liveness('collection-id', {
 console.log('Live:', liveness.isLive, 'Score:', liveness.livenessScore)
 ```
 
+## Active Liveness and Enrolment
+
+A collection can require liveness at enrolment. Run an active liveness check
+on a short burst of frames (5 to 50, JPEG or PNG) showing a blink and a head
+turn; when it passes, the result carries a single-use `livenessToken` (valid
+for 5 minutes, bound to that collection) to pass when registering.
+
+```typescript
+const frames = fs.readdirSync('./frames').map((f) => fs.readFileSync(`./frames/${f}`))
+
+const check = await client.faces.activeLiveness('collection-id', frames)
+console.log('Live:', check.isLive, 'Blink:', check.challenges.blink.passed)
+
+if (check.isLive && check.livenessToken) {
+  const face = await client.faces.register('collection-id', {
+    externalId: 'user_123',
+    image: frames[0],
+    livenessToken: check.livenessToken,
+  })
+}
+```
+
+The batch methods accept `livenessToken` per item as well. Enrolment errors:
+`LIVENESS_TOKEN_REQUIRED` (400, the collection needs a token),
+`LIVENESS_TOKEN_INVALID` (422, unknown, expired or already used) and
+`LIVENESS_FACE_MISMATCH` (422, the enrolled face is not the one that passed).
+
 ## Collections
 
 Collections are created and managed in the LiveXFace dashboard, not through
