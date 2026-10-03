@@ -43,6 +43,18 @@ export interface RegisterFaceInput {
      * collection requires liveness at enrolment.
      */
     livenessToken?: string
+    /**
+     * Sent as the `Idempotency-Key` header: repeating the call with the same
+     * key replays the first result instead of enrolling again. See
+     * {@link generateIdempotencyKey}.
+     */
+    idempotencyKey?: string
+}
+
+/** Options for the batch enrolment methods. */
+export interface IdempotencyOptions {
+    /** Sent as the `Idempotency-Key` header; see {@link RegisterFaceInput.idempotencyKey}. */
+    idempotencyKey?: string
 }
 
 export interface ListFacesInput {
@@ -283,4 +295,13 @@ export interface LiveXFaceConfig {
     baseUrl?: string
     /** Request timeout in milliseconds. Defaults to 30000 */
     timeout?: number
+    /**
+     * Retries after the first attempt. Defaults to 0 (off). 429 and 503 are
+     * retried after `Retry-After`; network errors and other 5xx only for
+     * GET/PATCH/DELETE and requests with an idempotency key. Enrolment and
+     * batch calls get a generated idempotency key when you give none.
+     */
+    maxRetries?: number
+    /** Upper bound on one retry delay, in milliseconds. Defaults to 60000 */
+    maxRetryDelay?: number
 }
