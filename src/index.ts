@@ -1,3 +1,9 @@
+/**
+ * The API contract (`info.version` of `/openapi.json`) this SDK release is
+ * validated against. Kept equal to the CONTRACT_VERSION file by the tests.
+ */
+export const CONTRACT_VERSION = '1.0.0'
+
 export { LiveXFace, FacesResource, generateIdempotencyKey } from './client'
 export { LiveXFaceApiError, LiveXFaceNetworkError } from './error'
 export type {

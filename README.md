@@ -17,6 +17,11 @@ npm install livexface
 yarn add livexface
 ```
 
+Validated against API contract 1.0.0 (`/openapi.json` `info.version`), exported as `CONTRACT_VERSION`.
+`npm test` calls every SDK method and checks its HTTP method, path and required fields against the pinned
+`contract/openapi-1.0.0.json`; to move to a new contract, copy the release asset `openapi-<version>.json` into
+`contract/`, then update the `CONTRACT_VERSION` file and the constant in `src/index.ts`.
+
 ## Quick Start
 
 ```typescript
