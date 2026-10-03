@@ -17,7 +17,7 @@
     "build": "tsc",
     "dev": "tsc --watch",
     "lint": "tsc --noEmit",
-    "test": "tsc && node --test \"test/*.test.js\"",
+    "test": "tsc && node --test test/*.test.js",
     "prepare": "tsc"
   },
   "keywords": [
