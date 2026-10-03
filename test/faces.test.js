@@ -118,3 +118,25 @@ for (const [method, path, data] of [
         ])
     })
 }
+
+test("typed errors expose details", async () => {
+  const restore = globalThis.fetch;
+  globalThis.fetch = async () =>
+    new Response(
+      JSON.stringify({
+        success: false,
+        requestId: "r-1",
+        error: { code: "MULTIPLE_FACES", message: "multiple faces detected", details: { faceCount: 2, faces: [] } },
+      }),
+      { status: 422, headers: { "Content-Type": "application/json" } },
+    );
+  try {
+    const client = new LiveXFace({ apiKey: "lxf_test", baseUrl: "http://x/api/v1" });
+    await assert.rejects(
+      client.faces.register("col", { externalId: "a", image: Buffer.from("img") }),
+      (err) => err instanceof LiveXFaceApiError && err.code === "MULTIPLE_FACES" && err.details.faceCount === 2,
+    );
+  } finally {
+    globalThis.fetch = restore;
+  }
+});
