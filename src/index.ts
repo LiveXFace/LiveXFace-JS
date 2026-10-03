@@ -1,4 +1,4 @@
-export { LiveXFace, FacesResource } from './client'
+export { LiveXFace, FacesResource, generateIdempotencyKey } from './client'
 export { LiveXFaceApiError, LiveXFaceNetworkError } from './error'
 export type {
     LiveXFaceConfig,
@@ -6,6 +6,7 @@ export type {
     APIError,
     Face,
     RegisterFaceInput,
+    IdempotencyOptions,
     ListFacesInput,
     ListFacesResponse,
     VerifyInput,

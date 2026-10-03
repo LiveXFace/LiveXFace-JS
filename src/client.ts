@@ -1,3 +1,4 @@
+import * as crypto from "crypto";
 import * as fs from "fs";
 import * as path from "path";
 import { LiveXFaceApiError, LiveXFaceNetworkError } from "./error";
@@ -22,10 +23,14 @@ import type {
   AttributesInput,
   AttributesResult,
   BatchJob,
+  IdempotencyOptions,
 } from "./types";
 
 const DEFAULT_BASE_URL = "http://localhost:8080/api/v1";
 const DEFAULT_TIMEOUT = 30_000;
+const DEFAULT_MAX_RETRY_DELAY = 60_000;
+// Repeating these is harmless, so a network error or 5xx may be retried.
+const SAFE_METHODS = ["GET", "PATCH", "DELETE"];
 
 type ImageSource = Blob | Buffer | ArrayBuffer | string; // string = file path
 
@@ -44,6 +49,21 @@ async function toBlob(src: ImageSource, filename = "image.jpg"): Promise<Blob> {
     return new Blob([new Uint8Array(src)], { type: "image/jpeg" });
   }
   return new Blob([src], { type: "image/jpeg" });
+}
+
+/**
+ * Generate a random idempotency key (a UUID v4) for the enrolment and batch
+ * methods. Uses Web Crypto where present (browsers, Node 19+), else Node's
+ * crypto module.
+ */
+export function generateIdempotencyKey(): string {
+  return globalThis.crypto?.randomUUID?.() ?? crypto.randomUUID();
+}
+
+/** Whole seconds from a `Retry-After` header; an HTTP-date is ignored. */
+function parseRetryAfter(value: string | null): number | undefined {
+  const v = value?.trim();
+  return v && /^\d+$/.test(v) ? Number(v) : undefined;
 }
 
 /**
@@ -70,6 +90,12 @@ export class LiveXFace {
   private readonly baseUrl: string;
   private readonly apiKey: string;
   private readonly timeout: number;
+  private readonly maxRetries: number;
+  private readonly maxRetryDelay: number;
+
+  /** @internal Replaced in tests so retries do not really wait. */
+  _sleep = (ms: number): Promise<void> =>
+    new Promise((resolve) => setTimeout(resolve, ms));
 
   public readonly faces: FacesResource;
 
@@ -77,20 +103,80 @@ export class LiveXFace {
     this.baseUrl = (config.baseUrl ?? DEFAULT_BASE_URL).replace(/\/$/, "");
     this.apiKey = config.apiKey;
     this.timeout = config.timeout ?? DEFAULT_TIMEOUT;
+    this.maxRetries = config.maxRetries ?? 0;
+    this.maxRetryDelay = config.maxRetryDelay ?? DEFAULT_MAX_RETRY_DELAY;
 
     this.faces = new FacesResource(this);
+  }
+
+  /**
+   * @internal The caller's key, or with retries on a fresh one, so every
+   * attempt of one enrolment call carries the same key.
+   */
+  _idempotencyKey(key?: string): string | undefined {
+    return key ?? (this.maxRetries > 0 ? generateIdempotencyKey() : undefined);
   }
 
   /** @internal */
   async _request<T>(
     method: string,
     endpoint: string,
-    options: { body?: BodyInit; json?: unknown; formData?: FormData } = {},
+    options: RequestOptions = {},
+  ): Promise<T> {
+    const safe =
+      options.idempotencyKey !== undefined || SAFE_METHODS.includes(method);
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await this._attempt<T>(method, endpoint, options);
+      } catch (err) {
+        const delay =
+          attempt < this.maxRetries
+            ? this._retryDelay(err, safe, attempt)
+            : undefined;
+        if (delay === undefined) throw err;
+        await this._sleep(delay);
+      }
+    }
+  }
+
+  /** Milliseconds to wait before retrying after `err`, or undefined to give up. */
+  private _retryDelay(
+    err: unknown,
+    safe: boolean,
+    attempt: number,
+  ): number | undefined {
+    let retryAfter: number | undefined;
+    if (err instanceof LiveXFaceApiError) {
+      const status = err.statusCode;
+      if (status === 429 || status === 503) retryAfter = err.retryAfter;
+      else if (status < 500 || !safe) return undefined;
+    } else if (!(err instanceof LiveXFaceNetworkError) || !safe) {
+      return undefined;
+    }
+    // Full jitter: anywhere between 0 and 0.5 s * 2^attempt.
+    const ms =
+      retryAfter !== undefined
+        ? retryAfter * 1000
+        : Math.random() * 500 * 2 ** attempt;
+    return Math.min(ms, this.maxRetryDelay);
+  }
+
+  /**
+   * One HTTP round trip. The body is rebuilt from `options` each time; a
+   * FormData or JSON string can be sent again, so retries replay it.
+   */
+  private async _attempt<T>(
+    method: string,
+    endpoint: string,
+    options: RequestOptions,
   ): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
     const headers: Record<string, string> = {
       "X-API-Key": this.apiKey,
     };
+    if (options.idempotencyKey !== undefined) {
+      headers["Idempotency-Key"] = options.idempotencyKey;
+    }
 
     let body: BodyInit | undefined;
     if (options.json !== undefined) {
@@ -131,6 +217,7 @@ export class LiveXFace {
       return undefined as T;
     }
 
+    const retryAfter = parseRetryAfter(response.headers.get("Retry-After"));
     let parsed: APIResponse<T>;
     try {
       parsed = (await response.json()) as APIResponse<T>;
@@ -143,6 +230,9 @@ export class LiveXFace {
           ? "Failed to parse response body"
           : `Request failed with HTTP ${response.status}`,
         response.status,
+        undefined,
+        undefined,
+        retryAfter,
       );
     }
 
@@ -153,12 +243,20 @@ export class LiveXFace {
         response.status,
         parsed.requestId,
         parsed.error?.details,
+        retryAfter,
       );
     }
 
     return parsed.data as T;
   }
 }
+
+type RequestOptions = {
+  body?: BodyInit;
+  json?: unknown;
+  formData?: FormData;
+  idempotencyKey?: string;
+};
 
 /**
  * Serialize a batch item into its `entries` JSON object. `livenessToken` is
@@ -197,6 +295,7 @@ export class FacesResource {
       `/collections/${collectionId}/faces`,
       {
         formData: form,
+        idempotencyKey: this.client._idempotencyKey(input.idempotencyKey),
       },
     );
   }
@@ -350,6 +449,7 @@ export class FacesResource {
   async batchRegister(
     collectionId: string,
     items: BatchRegisterItem[],
+    options: IdempotencyOptions = {},
   ): Promise<BatchResponse> {
     const form = new FormData();
     const entries = items.map(toBatchEntry);
@@ -364,7 +464,10 @@ export class FacesResource {
     return this.client._request<BatchResponse>(
       "POST",
       `/collections/${collectionId}/faces/batch`,
-      { formData: form },
+      {
+        formData: form,
+        idempotencyKey: this.client._idempotencyKey(options.idempotencyKey),
+      },
     );
   }
 
@@ -407,6 +510,7 @@ export class FacesResource {
   async batchRegisterAsync(
     collectionId: string,
     items: BatchRegisterItem[],
+    options: IdempotencyOptions = {},
   ): Promise<BatchJob> {
     const form = new FormData();
     const entries = items.map(toBatchEntry);
@@ -421,7 +525,10 @@ export class FacesResource {
     return this.client._request<BatchJob>(
       "POST",
       `/collections/${collectionId}/faces/batch-async`,
-      { formData: form },
+      {
+        formData: form,
+        idempotencyKey: this.client._idempotencyKey(options.idempotencyKey),
+      },
     );
   }
 
