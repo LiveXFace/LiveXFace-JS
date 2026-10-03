@@ -152,6 +152,7 @@ export class LiveXFace {
         parsed.error?.message ?? "An unknown error occurred",
         response.status,
         parsed.requestId,
+        parsed.error?.details,
       );
     }
 

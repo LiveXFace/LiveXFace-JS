@@ -17,6 +17,8 @@ export interface APIResponse<T = unknown> {
 export interface APIError {
     code: string
     message: string
+    /** Present for codes that define it, e.g. MULTIPLE_FACES. */
+    details?: Record<string, unknown>
 }
 
 // ─── Faces ────────────────────────────────────────────────────────────────────
