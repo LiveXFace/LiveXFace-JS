@@ -17,6 +17,9 @@ import type {
   LivenessInput,
   LivenessResult,
   ActiveLivenessResult,
+  LivenessSession,
+  LivenessSessionResult,
+  CompleteLivenessSessionOptions,
   BatchRegisterItem,
   BatchResponse,
   BatchDeleteResponse,
@@ -131,7 +134,7 @@ export class LiveXFace {
       } catch (err) {
         const delay =
           attempt < this.maxRetries
-            ? this._retryDelay(err, safe, attempt)
+            ? this._retryDelay(err, safe, attempt, options.retryBusy ?? true)
             : undefined;
         if (delay === undefined) throw err;
         await this._sleep(delay);
@@ -144,11 +147,12 @@ export class LiveXFace {
     err: unknown,
     safe: boolean,
     attempt: number,
+    retryBusy: boolean,
   ): number | undefined {
     let retryAfter: number | undefined;
     if (err instanceof LiveXFaceApiError) {
       const status = err.statusCode;
-      if (status === 429 || status === 503) retryAfter = err.retryAfter;
+      if (status === 429 || (status === 503 && retryBusy)) retryAfter = err.retryAfter;
       else if (status < 500 || !safe) return undefined;
     } else if (!(err instanceof LiveXFaceNetworkError) || !safe) {
       return undefined;
@@ -256,6 +260,8 @@ type RequestOptions = {
   json?: unknown;
   formData?: FormData;
   idempotencyKey?: string;
+  /** False when a 503 means the request was consumed, so a retry cannot succeed. */
+  retryBusy?: boolean;
 };
 
 /**
@@ -269,6 +275,17 @@ function toBatchEntry(item: BatchRegisterItem): Record<string, unknown> {
   };
   if (item.livenessToken) entry.livenessToken = item.livenessToken;
   return entry;
+}
+
+/** Frames as multipart files `frame_0`, `frame_1`, ... in order. */
+async function framesForm(
+  frames: Array<Blob | Buffer | ArrayBuffer>,
+): Promise<FormData> {
+  const form = new FormData();
+  for (let i = 0; i < frames.length; i++) {
+    form.append(`frame_${i}`, await toBlob(frames[i]), `frame_${i}.jpg`);
+  }
+  return form;
 }
 
 // ─── Faces Resource ───────────────────────────────────────────────────────────
@@ -409,23 +426,57 @@ export class FacesResource {
 
   /**
    * Active liveness — analyse a short burst of frames (5 to 50, JPEG/PNG) for
-   * a blink, a head turn and passive anti-spoofing. When the check passes the
-   * result carries a single-use `livenessToken`, valid for 5 minutes and bound
-   * to this collection, that {@link register} and the batch methods accept
-   * for collections that require liveness at enrolment.
+   * a blink, a head turn and passive anti-spoofing. A verdict only: it issues
+   * no liveness token. To enrol into a collection that requires liveness, use
+   * {@link createLivenessSession} and {@link completeLivenessSession}.
    */
   async activeLiveness(
     collectionId: string,
     frames: Array<Blob | Buffer | ArrayBuffer>,
   ): Promise<ActiveLivenessResult> {
-    const form = new FormData();
-    for (let i = 0; i < frames.length; i++) {
-      form.append(`frame_${i}`, await toBlob(frames[i]), `frame_${i}.jpg`);
-    }
     return this.client._request<ActiveLivenessResult>(
       "POST",
       `/collections/${collectionId}/active-liveness`,
-      { formData: form },
+      { formData: await framesForm(frames) },
+    );
+  }
+
+  /**
+   * Start a liveness session. Show its `challenges` to the person in order,
+   * capture frames while they perform them, and pass the frames to
+   * {@link completeLivenessSession} before `expiresAt`.
+   */
+  async createLivenessSession(collectionId: string): Promise<LivenessSession> {
+    return this.client._request<LivenessSession>(
+      "POST",
+      `/collections/${collectionId}/liveness-sessions`,
+    );
+  }
+
+  /**
+   * Submit the frames (5 to 50, JPEG/PNG) for a liveness session. A pass
+   * carries a single-use `livenessToken`, valid for 5 minutes and bound to
+   * this collection, for {@link register} and the batch methods.
+   *
+   * The session is used up by any submission except one with fewer than 5
+   * frames, so it carries no idempotency key and is retried only on 429
+   * (rejected before the session is touched), never on a network error or
+   * 5xx. A 503 `SERVICE_BUSY` arrives after the session was used up, so it is
+   * thrown at once: after it or `LIVENESS_SESSION_INVALID` (422), create a new
+   * session.
+   */
+  async completeLivenessSession(
+    collectionId: string,
+    sessionId: string,
+    frames: Array<Blob | Buffer | ArrayBuffer>,
+    options: CompleteLivenessSessionOptions = {},
+  ): Promise<LivenessSessionResult> {
+    const form = await framesForm(frames);
+    form.append("mirrored", String(options.mirrored ?? false));
+    return this.client._request<LivenessSessionResult>(
+      "POST",
+      `/collections/${collectionId}/liveness-sessions/${sessionId}`,
+      { formData: form, retryBusy: false },
     );
   }
 

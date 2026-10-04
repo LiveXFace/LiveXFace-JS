@@ -17,9 +17,9 @@ npm install livexface
 yarn add livexface
 ```
 
-Validated against API contract 1.0.0 (`/openapi.json` `info.version`), exported as `CONTRACT_VERSION`.
+Validated against API contract 2.0.0 (`/openapi.json` `info.version`), exported as `CONTRACT_VERSION`.
 `npm test` calls every SDK method and checks its HTTP method, path and required fields against the pinned
-`contract/openapi-1.0.0.json`; to move to a new contract, copy the release asset `openapi-<version>.json` into
+`contract/openapi-2.0.0.json`; to move to a new contract, copy the release asset `openapi-<version>.json` into
 `contract/`, then update the `CONTRACT_VERSION` file and the constant in `src/index.ts`.
 
 ## Quick Start
@@ -64,27 +64,51 @@ const liveness = await client.faces.liveness('collection-id', {
 console.log('Live:', liveness.isLive, 'Score:', liveness.livenessScore)
 ```
 
-## Active Liveness and Enrolment
+## Liveness Sessions and Enrolment
 
-A collection can require liveness at enrolment. Run an active liveness check
-on a short burst of frames (5 to 50, JPEG or PNG) showing a blink and a head
-turn; when it passes, the result carries a single-use `livenessToken` (valid
-for 5 minutes, bound to that collection) to pass when registering.
+A collection can require liveness at enrolment. The enrolment token comes only
+from a completed liveness session: the server picks the steps (one blink and
+one or two head turns, in random order), the person performs them on camera,
+and you submit the frames once, within 60 seconds. `turn_left` and
+`turn_right` mean the person's own left and right.
 
 ```typescript
-const frames = fs.readdirSync('./frames').map((f) => fs.readFileSync(`./frames/${f}`))
+const prompts = { blink: 'Blink', turn_left: 'Turn your head to your left', turn_right: 'Turn your head to your right' }
 
-const check = await client.faces.activeLiveness('collection-id', frames)
-console.log('Live:', check.isLive, 'Blink:', check.challenges.blink.passed)
+// 1. Create a session and show its challenges, in order
+const session = await client.faces.createLivenessSession('collection-id')
+for (const step of session.challenges) showPrompt(prompts[step.type])
 
-if (check.isLive && check.livenessToken) {
+// 2. Capture 5 to 50 frames (JPEG or PNG) while the person performs them
+const frames: Buffer[] = await captureFrames()
+
+// 3. Complete it; mirrored: true when the frames are flipped like a selfie preview
+const result = await client.faces.completeLivenessSession('collection-id', session.sessionId, frames, {
+  mirrored: false,
+})
+console.log('Live:', result.isLive, result.steps.map((s) => `${s.type}: ${s.passed}`))
+
+// 4. Enrol with the single-use token (valid 5 minutes, bound to this collection)
+if (result.isLive && result.livenessToken) {
   const face = await client.faces.register('collection-id', {
     externalId: 'user_123',
     image: frames[0],
-    livenessToken: check.livenessToken,
+    livenessToken: result.livenessToken,
   })
 }
 ```
+
+A session is used up by any submission except one with fewer than 5 frames
+(`IMAGE_REQUIRED`, 400), so a completion carries no idempotency key. With
+`maxRetries` on, it is retried only on `429` (rejected before the session is
+touched), never on network errors or `5xx`. Session errors:
+`LIVENESS_SESSION_INVALID` (422, unknown, expired, already submitted, or
+created for another collection) and `SERVICE_BUSY` (503, the engine was busy
+after the session was used up; thrown at once, not retried). After either,
+create a new session.
+
+`activeLiveness(collectionId, frames)` still returns a verdict (`isLive`,
+`overallScore`, `challenges`), but no token.
 
 The batch methods accept `livenessToken` per item as well. Enrolment errors:
 `LIVENESS_TOKEN_REQUIRED` (400, the collection needs a token),
@@ -164,7 +188,9 @@ first). `429` and `503` are retried after the `Retry-After` delay (capped by
 `maxRetryDelay`), or after an exponential backoff with jitter. Network errors
 and other `5xx` are retried only for GET, PATCH and DELETE and for requests
 with an idempotency key; a plain POST such as `identify` is not. Other `4xx`
-responses are never retried. Enrolment and batch calls get a generated key when
+responses are never retried. `completeLivenessSession` is the exception to
+the `503` rule: see [Liveness Sessions](#liveness-sessions-and-enrolment).
+Enrolment and batch calls get a generated key when
 you pass none, and every attempt of one call sends the same key.
 
 ```typescript

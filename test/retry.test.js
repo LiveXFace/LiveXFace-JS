@@ -183,3 +183,36 @@ test('a GET is retried on a network error', async () => {
     assert.deepEqual(res, face)
     assert.equal(requests.length, 2)
 })
+
+test('a liveness session completion is not retried on a dropped connection', async () => {
+    handlers = [drop, reply(200, { success: true, data: { isLive: true, steps: [] } })]
+    const client = makeClient({ maxRetries: 3 })
+    const frames = Array.from({ length: 5 }, img)
+    await assert.rejects(client.faces.completeLivenessSession('col_1', 'lvs_1', frames), LiveXFaceNetworkError)
+    assert.equal(requests.length, 1)
+    assert.equal(requests[0].url, '/api/v1/collections/col_1/liveness-sessions/lvs_1')
+    assert.equal('idempotency-key' in requests[0].headers, false)
+    assert.deepEqual(client.slept, [])
+})
+
+test('a liveness session completion surfaces 503 at once but is retried after 429', async () => {
+    const client = makeClient({ maxRetries: 3 })
+    const complete = () => client.faces.completeLivenessSession('col_1', 'lvs_1', Array.from({ length: 5 }, img))
+
+    handlers = [fail(503, 'SERVICE_BUSY', { 'Retry-After': '1' }), reply(200, { success: true, data: {} })]
+    await assert.rejects(complete(), (err) => {
+        assert.ok(err instanceof LiveXFaceApiError)
+        assert.equal(err.statusCode, 503)
+        assert.equal(err.code, 'SERVICE_BUSY')
+        return true
+    })
+    assert.equal(requests.length, 1)
+    assert.deepEqual(client.slept, [])
+
+    requests = []
+    handlers = [fail(429, 'RATE_LIMIT_EXCEEDED', { 'Retry-After': '2' }), reply(200, { success: true, data: { isLive: true, steps: [] } })]
+    const res = await complete()
+    assert.equal(res.isLive, true)
+    assert.equal(requests.length, 2)
+    assert.deepEqual(client.slept, [2000])
+})
