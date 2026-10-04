@@ -31,19 +31,10 @@ const challenges = {
     passiveAntispoof: { passed: true, available: true, score: 0.97 },
 }
 
-test('activeLiveness sends frame_0..frame_n and parses the token', async () => {
-    stubFetch(200, {
-        success: true,
-        data: {
-            isLive: true,
-            overallScore: 0.95,
-            framesAnalyzed: 6,
-            framesWithFace: 6,
-            challenges,
-            livenessToken: 'lvt_abc',
-            livenessTokenExpiresAt: '2026-09-28T10:05:00Z',
-        },
-    })
+const verdict = { overallScore: 0.95, framesAnalyzed: 6, framesWithFace: 6, challenges }
+
+test('activeLiveness sends frame_0..frame_n and returns a verdict without a token', async () => {
+    stubFetch(200, { success: true, data: { isLive: true, ...verdict } })
     const frames = Array.from({ length: 6 }, img)
     const res = await client.faces.activeLiveness('col_1', frames)
 
@@ -52,27 +43,89 @@ test('activeLiveness sends frame_0..frame_n and parses the token', async () => {
     const form = calls[0].init.body
     assert.deepEqual([...form.keys()], ['frame_0', 'frame_1', 'frame_2', 'frame_3', 'frame_4', 'frame_5'])
     assert.equal(res.isLive, true)
-    assert.equal(res.livenessToken, 'lvt_abc')
-    assert.equal(res.livenessTokenExpiresAt, '2026-09-28T10:05:00Z')
     assert.equal(res.challenges.blink.blinkCount, 1)
+    assert.equal('livenessToken' in res, false)
+    assert.equal('livenessTokenExpiresAt' in res, false)
 })
 
-test('a failed activeLiveness check carries no token', async () => {
+test('createLivenessSession posts no body and returns the ordered challenges', async () => {
+    const session = {
+        sessionId: 'lvs_abc',
+        challenges: [{ type: 'turn_left' }, { type: 'blink' }, { type: 'turn_right' }],
+        expiresAt: '2026-10-03T10:01:00Z',
+    }
+    stubFetch(201, { success: true, data: session })
+    const res = await client.faces.createLivenessSession('col_1')
+
+    assert.equal(calls[0].url, 'http://api.test/api/v1/collections/col_1/liveness-sessions')
+    assert.equal(calls[0].init.method, 'POST')
+    assert.equal(calls[0].init.body, undefined)
+    assert.equal('Idempotency-Key' in calls[0].init.headers, false)
+    assert.deepEqual(res, session)
+    assert.deepEqual(res.challenges.map((c) => c.type), ['turn_left', 'blink', 'turn_right'])
+})
+
+test('completeLivenessSession sends frames and mirrored, and parses steps and the token', async () => {
+    stubFetch(200, {
+        success: true,
+        data: {
+            isLive: true,
+            ...verdict,
+            steps: [{ type: 'turn_left', passed: true }, { type: 'blink', passed: true }],
+            livenessToken: 'lvt_abc',
+            livenessTokenExpiresAt: '2026-10-03T10:06:00Z',
+        },
+    })
+    const res = await client.faces.completeLivenessSession('col_1', 'lvs_abc', Array.from({ length: 6 }, img), {
+        mirrored: true,
+    })
+
+    assert.equal(calls[0].url, 'http://api.test/api/v1/collections/col_1/liveness-sessions/lvs_abc')
+    assert.equal(calls[0].init.method, 'POST')
+    assert.equal('Idempotency-Key' in calls[0].init.headers, false)
+    const form = calls[0].init.body
+    assert.deepEqual(
+        [...form.keys()],
+        ['frame_0', 'frame_1', 'frame_2', 'frame_3', 'frame_4', 'frame_5', 'mirrored'],
+    )
+    assert.equal(form.get('mirrored'), 'true')
+    assert.equal(res.isLive, true)
+    assert.deepEqual(res.steps, [{ type: 'turn_left', passed: true }, { type: 'blink', passed: true }])
+    assert.equal(res.livenessToken, 'lvt_abc')
+    assert.equal(res.livenessTokenExpiresAt, '2026-10-03T10:06:00Z')
+})
+
+test('completeLivenessSession sends mirrored=false by default; a failed session carries no token', async () => {
     stubFetch(200, {
         success: true,
         data: {
             isLive: false,
+            ...verdict,
             overallScore: 0.2,
-            framesAnalyzed: 5,
-            framesWithFace: 5,
-            challenges: { ...challenges, blink: { passed: false, available: true } },
+            steps: [{ type: 'blink', passed: true }, { type: 'turn_right', passed: false }],
         },
     })
-    const res = await client.faces.activeLiveness('col_1', Array.from({ length: 5 }, img))
+    const res = await client.faces.completeLivenessSession('col_1', 'lvs_abc', Array.from({ length: 5 }, img))
+    assert.equal(calls[0].init.body.get('mirrored'), 'false')
     assert.equal(res.isLive, false)
-    assert.equal(res.challenges.blink.passed, false)
+    assert.equal(res.steps[1].passed, false)
     assert.equal(res.livenessToken, undefined)
     assert.equal(res.livenessTokenExpiresAt, undefined)
+})
+
+test('completeLivenessSession surfaces LIVENESS_SESSION_INVALID as a typed error', async () => {
+    stubFetch(422, {
+        success: false,
+        requestId: 'req_9',
+        error: { code: 'LIVENESS_SESSION_INVALID', message: 'liveness session is invalid or expired' },
+    })
+    await assert.rejects(client.faces.completeLivenessSession('col_1', 'lvs_used', Array.from({ length: 5 }, img)), (err) => {
+        assert.ok(err instanceof LiveXFaceApiError)
+        assert.equal(err.code, 'LIVENESS_SESSION_INVALID')
+        assert.equal(err.statusCode, 422)
+        assert.equal(err.requestId, 'req_9')
+        return true
+    })
 })
 
 test('activeLiveness surfaces IMAGE_REQUIRED', async () => {

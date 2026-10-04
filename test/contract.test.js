@@ -39,6 +39,9 @@ const cases = {
         identify: (f) => f.identify(col, { image: img(), topK: 3, threshold: 0.5 }),
         liveness: (f) => f.liveness(col, { image: img() }),
         activeLiveness: (f) => f.activeLiveness(col, Array.from({ length: 5 }, img)),
+        createLivenessSession: (f) => f.createLivenessSession(col),
+        completeLivenessSession: (f) =>
+            f.completeLivenessSession(col, 'lvs_1', Array.from({ length: 5 }, img), { mirrored: true }),
         compare: (f) => f.compare({ image1: img(), image2: img(), threshold: 0.5 }),
         batchRegister: (f) => f.batchRegister(col, items, { idempotencyKey: 'k2' }),
         batchDelete: (f) => f.batchDelete(col, ['face_1', 'face_2']),

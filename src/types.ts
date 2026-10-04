@@ -39,7 +39,7 @@ export interface RegisterFaceInput {
     metadata?: Record<string, unknown>
     filename?: string
     /**
-     * Single-use token from {@link ActiveLivenessResult}. Required when the
+     * Single-use token from {@link LivenessSessionResult}. Required when the
      * collection requires liveness at enrolment.
      */
     livenessToken?: string
@@ -171,7 +171,40 @@ export interface ActiveLivenessResult {
     framesAnalyzed: number
     framesWithFace: number
     challenges: ActiveLivenessChallenges
-    /** Single-use enrolment token, present only when the check passed */
+}
+
+// ─── Liveness Sessions ────────────────────────────────────────────────────────
+
+/** A step of a liveness session. Left and right are the person's own. */
+export type LivenessChallengeType = 'blink' | 'turn_left' | 'turn_right'
+
+export interface LivenessChallenge {
+    type: LivenessChallengeType
+}
+
+/** A liveness session: the steps to perform, in order, before `expiresAt`. */
+export interface LivenessSession {
+    sessionId: string
+    challenges: LivenessChallenge[]
+    /** RFC 3339; 60 seconds after creation by default */
+    expiresAt: string
+}
+
+export interface LivenessStep {
+    type: LivenessChallengeType
+    passed: boolean
+}
+
+export interface CompleteLivenessSessionOptions {
+    /** True when the frames are horizontally mirrored, as a selfie preview is. Defaults to false. */
+    mirrored?: boolean
+}
+
+/** Result of completing a liveness session. */
+export interface LivenessSessionResult extends ActiveLivenessResult {
+    /** The session's challenges in order, each marked passed or not */
+    steps: LivenessStep[]
+    /** Single-use enrolment token, present only when the session passed */
     livenessToken?: string
     /** RFC 3339 expiry of `livenessToken` (5 minutes after issue) */
     livenessTokenExpiresAt?: string
@@ -185,7 +218,7 @@ export interface BatchRegisterItem {
     metadata?: Record<string, unknown>
     filename?: string
     /**
-     * Single-use token from {@link ActiveLivenessResult}. Required when the
+     * Single-use token from {@link LivenessSessionResult}. Required when the
      * collection requires liveness at enrolment.
      */
     livenessToken?: string
