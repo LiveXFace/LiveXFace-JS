@@ -140,6 +140,17 @@ test('activeLiveness surfaces IMAGE_REQUIRED', async () => {
 
 const face = { id: 'f1', collectionId: 'col_1', externalId: 'u1', metadata: {}, createdAt: 'x' }
 
+test('search parses skipped collections and surfaces typed profile mismatch', async () => {
+    stubFetch(200, { success: true, data: { matches: [], queryTimeMs: 8, collectionsSearched: 1, skippedCollections: [{ id: 'c2', name: 'Legacy', reason: 'embedding_profile_mismatch' }] } })
+    const result = await client.faces.search({ image: img(), collectionIds: ['c1', 'c2'], topK: 3 })
+    assert.equal(calls[0].url, 'http://api.test/api/v1/search')
+    assert.equal(calls[0].init.body.get('collection_ids'), 'c1,c2')
+    assert.equal(result.skippedCollections[0].reason, 'embedding_profile_mismatch')
+
+    stubFetch(409, { success: false, error: { code: 'EMBEDDING_PROFILE_MISMATCH', message: 'no compatible collections' } })
+    await assert.rejects(client.faces.search({ image: img() }), (err) => err instanceof LiveXFaceApiError && err.statusCode === 409 && err.code === 'EMBEDDING_PROFILE_MISMATCH')
+})
+
 test('register sends liveness_token when given', async () => {
     stubFetch(201, { success: true, data: face })
     await client.faces.register('col_1', { externalId: 'u1', image: img(), livenessToken: 'lvt_abc' })

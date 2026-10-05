@@ -128,6 +128,33 @@ export interface IdentifyResult {
     imageSize?: ImageSize
 }
 
+export interface CrossCollectionSearchInput {
+    image: Blob | Buffer | ArrayBuffer
+    collectionIds?: string[]
+    topK?: number
+    threshold?: number
+    filename?: string
+}
+
+export interface CrossCollectionSearchMatch extends IdentifyMatch {
+    collectionId: string
+}
+
+export interface SkippedCollection {
+    id: string
+    name: string
+    reason: string
+}
+
+export interface CrossCollectionSearchResult {
+    matches: CrossCollectionSearchMatch[]
+    queryTimeMs: number
+    collectionsSearched: number
+    skippedCollections: SkippedCollection[]
+    detectedFaces?: DetectedFace[]
+    imageSize?: ImageSize
+}
+
 export interface CompareInput {
     image1: Blob | Buffer | ArrayBuffer
     image2: Blob | Buffer | ArrayBuffer
