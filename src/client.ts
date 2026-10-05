@@ -13,6 +13,8 @@ import type {
   VerifyResult,
   IdentifyInput,
   IdentifyResult,
+  CrossCollectionSearchInput,
+  CrossCollectionSearchResult,
   CompareInput,
   LivenessInput,
   LivenessResult,
@@ -406,6 +408,16 @@ export class FacesResource {
       `/collections/${collectionId}/identify`,
       { formData: form },
     );
+  }
+
+  /** Search for matching faces across multiple or all collections. */
+  async search(input: CrossCollectionSearchInput): Promise<CrossCollectionSearchResult> {
+    const form = new FormData();
+    form.append("image", await toBlob(input.image), input.filename ?? "image.jpg");
+    if (input.collectionIds?.length) form.append("collection_ids", input.collectionIds.join(","));
+    if (input.topK !== undefined) form.append("top_k", String(input.topK));
+    if (input.threshold !== undefined) form.append("threshold", String(input.threshold));
+    return this.client._request<CrossCollectionSearchResult>("POST", "/search", { formData: form });
   }
 
   /**

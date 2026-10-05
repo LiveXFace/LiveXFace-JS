@@ -37,6 +37,7 @@ const cases = {
         delete: (f) => f.delete(col, 'face_1'),
         verify: (f) => f.verify(col, { image: img(), faceId: 'face_1', threshold: 0.5 }),
         identify: (f) => f.identify(col, { image: img(), topK: 3, threshold: 0.5 }),
+        search: (f) => f.search({ image: img(), collectionIds: ['col_1', 'col_2'], topK: 3, threshold: 0.5 }),
         liveness: (f) => f.liveness(col, { image: img() }),
         activeLiveness: (f) => f.activeLiveness(col, Array.from({ length: 5 }, img)),
         createLivenessSession: (f) => f.createLivenessSession(col),
